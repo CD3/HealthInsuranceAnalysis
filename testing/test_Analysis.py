@@ -1,6 +1,6 @@
 #! env python
 
-from Analysis import *
+from HIA.Analysis import *
 
 def test_units():
 
@@ -143,6 +143,18 @@ def test_InsurancePayment():
   assert a.InsurancePayment(35000) == 25000
   assert a.InsurancePayment(100000) == 90000
 
+
+def test_Insurance100PercentPayExpense():
+  p = InsurancePlan()
+  p.deductible = 5000*u.dollar
+  p.coinsurance = 50*u.percent
+  p.out_of_pocket_max = 10000*u.dollar
+  
+  a = Analysis( p )
+
+  assert a.Insurance100PercentPayExpense() == 15000
+
+
 def test_TotalCost():
 
   p = InsurancePlan()
@@ -158,6 +170,23 @@ def test_TotalCost():
 
   assert a.TotalCost(0) == 12000
   assert a.TotalCost(100000) == 12000+10000
+
+
+  p = InsurancePlan()
+  p.deductible = 5000*u.dollar
+  p.coinsurance = 20*u.percent
+  p.out_of_pocket_max = 10000*u.dollar
+  p.HSA_initial = 0*u.dollar
+  p.HSA_employee_contribution = 25*u.dollar/u.semimonth
+  p.premium = 1000*u.dollar/u.month
+
+  assert (p.premium * u.year).to('dollar') == 12000
+  assert (p.HSA_employee_contribution*u.year).to('dollar') == 600
+  
+  a = Analysis( p )
+
+  assert a.TotalCost(0) == 12600
+  assert a.TotalCost(100000) == 12000+10000 # the HSA contribution will add to cost but reduce responsibility
 
 
 def test_Analysis():
@@ -187,5 +216,56 @@ def test_Analysis():
   assert report['HSA payment'] + report['out of pocket payment'] + report['insurance payment'] == 100000
 
 
+def test_utils():
+
+  assert make_Q_( 100 ) == 100*u.dollar
+  assert make_Q_( 100*u.cent ) == 100*u.cent
+  assert make_Q_( '100' ) == 100*u.dollar
+  assert make_Q_( '100 cent' ) == 100*u.cent
+
+def test_InsurancePlan_config():
+
+  text = '''
+  deductible  : 5000 dollar
+  coinsurance : 20 %
+  out of pocket max : 10000
+  test : 1
+  nested :
+    one : 1
+    nested :
+      two : 2
+      test : 1
+      x : 1
+  '''
+
+  p = InsurancePlan()
+
+  assert p.deductible is None
+  assert p.coinsurance is None
+  assert p.out_of_pocket_max is None
+
+  p.load(text)
+
+  assert p.deductible == 5000
+  assert p.coinsurance == 0.2
+  assert p.out_of_pocket_max == 10000
+
+def test_Analysis_config():
+
+  text = '''
+  plan :
+    deductible  : 5000 dollar
+    coinsurance : 20 %
+    out of pocket max : 10000
+    premium : 100 dollar/semimonth
+  '''
+
+  a = Analysis()
+  a.load( text )
+
+  assert a.plan.deductible == 5000
+  assert a.plan.coinsurance == 0.2
+  assert a.plan.out_of_pocket_max == 10000
+  assert (a.plan.premium * u.year).to('dollar') == 2400
 
 
